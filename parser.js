@@ -133,10 +133,15 @@ async function parse() {
     }
 
     const notes = [];
+    exportDialog.show(notesDirectoryInfo.notes.length);
+    let processedNotes = 0;
 
     for (const noteIndexEntry of notesDirectoryInfo.notes) {
         const note = await fetchNote(noteIndexEntry);
+        note.content = xmlToMarkdown(note.content);
         notes.push(note);
+        processedNotes++;
+        exportDialog.update(processedNotes);
     }
 
     const result = {
@@ -152,7 +157,6 @@ async function tryParse() {
     let result = null;
 
     try {
-        // result = parse();
         result = await parse();
     } catch (e) {
         console.error(e);
@@ -209,11 +213,23 @@ function createZipArchive(data) {
     return zip;
 }
 
+function sendEvent(message) {
+    chrome.runtime.sendMessage({
+        type: 'xiaomiNotesExporter',
+        message: message
+    }, (response) => {
+        // console.log('Content script got response:', response);
+    });
+}
+
 async function runExport() {
+    sendEvent('started');
+
     const content = await tryParse();
 
     if (content === null) {
         console.log('No notes found. Nothing to export.');
+        sendEvent('finished');
 
         return;
     }
@@ -235,9 +251,7 @@ async function runExport() {
         // statusDiv.innerHTML = 'Unexpected error: ' + error.message;
     }
 
-    // downloadJson(content, "notes.json");
-
-    alert('Download completed.');
+    sendEvent('finished');
 }
 
 (
