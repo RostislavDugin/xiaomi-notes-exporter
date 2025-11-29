@@ -1,15 +1,48 @@
 if (!("xiaomiNotesParser" in window)) {
     (() => {
+        // Export state for progress synchronization
+        const exportState = {
+            isRunning: false,
+            processedNotes: 0,
+            totalNotes: 0
+        };
+
+        function sendProgressUpdate() {
+            try {
+                chrome.runtime.sendMessage({
+                    type: 'EXPORT_PROGRESS',
+                    isRunning: exportState.isRunning,
+                    processedNotes: exportState.processedNotes,
+                    totalNotes: exportState.totalNotes
+                });
+            } catch (e) {
+                // Popup might be closed, ignore the error
+            }
+        }
+
+        function getExportState() {
+            return {
+                isRunning: exportState.isRunning,
+                processedNotes: exportState.processedNotes,
+                totalNotes: exportState.totalNotes
+            };
+        }
+
         window.xiaomiNotesParser = {
-            runExport: null
+            runExport: null,
+            getExportState: getExportState
         };
 
         let isRunningExport = false;
 
+        function getBaseUrl() {
+            return window.location.origin;
+        }
+
         async function fetchNote(noteId) {
             try {
                 const ts = Date.now();
-                const response = await fetch('https://us.i.mi.com/note/note/' + noteId + '/?ts=' + ts);
+                const response = await fetch(getBaseUrl() + '/note/note/' + noteId + '/?ts=' + ts);
 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -37,8 +70,9 @@ if (!("xiaomiNotesParser" in window)) {
         async function getNotesPageInfo(syncTag) {
             try {
                 const ts = Date.now();
+                const baseUrl = getBaseUrl();
 
-                const url = (syncTag !== null) ? 'https://us.i.mi.com/note/full/page?ts=' + ts + '&syncTag=' + syncTag + '&limit=200' : 'https://us.i.mi.com/note/full/page?ts=' + ts + '&limit=200';
+                const url = (syncTag !== null) ? baseUrl + '/note/full/page?ts=' + ts + '&syncTag=' + syncTag + '&limit=200' : baseUrl + '/note/full/page?ts=' + ts + '&limit=200';
 
                 const response = await fetch(url);
 
@@ -119,9 +153,14 @@ if (!("xiaomiNotesParser" in window)) {
             return directoryInfo;
         }
 
+        function isSupportedHost() {
+            const supportedHosts = ['us.i.mi.com', 'i.mi.com'];
+            return supportedHosts.includes(window.location.host);
+        }
+
         async function parse() {
-            if (window.location.host !== 'us.i.mi.com') {
-                alert('This extension is working only on Xiaomi Cloud site. Please go to Xiaomi Cloud site, open Notes section and try again.');
+            if (!isSupportedHost()) {
+                alert('This extension is working only on Xiaomi Cloud site. Please go to Xiaomi Cloud site (i.mi.com or us.i.mi.com), open Notes section and try again.');
 
                 return;
             }
@@ -136,7 +175,14 @@ if (!("xiaomiNotesParser" in window)) {
             const xmlToMarkdownConverter = window.xmlToMarkdownConverter;
 
             const notes = [];
-            exportDialog.show(notesDirectoryInfo.notes.length);
+            const totalNotes = notesDirectoryInfo.notes.length;
+            exportDialog.show(totalNotes);
+            
+            // Update export state for progress sync
+            exportState.totalNotes = totalNotes;
+            exportState.processedNotes = 0;
+            sendProgressUpdate();
+            
             let processedNotes = 0;
 
             for (const noteIndexEntry of notesDirectoryInfo.notes) {
@@ -145,6 +191,10 @@ if (!("xiaomiNotesParser" in window)) {
                 notes.push(note);
                 processedNotes++;
                 exportDialog.update(processedNotes);
+                
+                // Update export state and send progress
+                exportState.processedNotes = processedNotes;
+                sendProgressUpdate();
 
                 // На время тестирования ограничиваем 100 заметок чтобы не ждать долго
                 if (processedNotes === 100) {
@@ -227,12 +277,18 @@ if (!("xiaomiNotesParser" in window)) {
             }
 
             isRunningExport = true;
+            exportState.isRunning = true;
+            exportState.processedNotes = 0;
+            exportState.totalNotes = 0;
+            sendProgressUpdate();
 
             const content = await tryParse();
 
             if (content === null) {
                 console.log('No notes found. Nothing to export.');
                 isRunningExport = false;
+                exportState.isRunning = false;
+                sendProgressUpdate();
 
                 return;
             }
@@ -255,6 +311,8 @@ if (!("xiaomiNotesParser" in window)) {
             }
 
             isRunningExport = false;
+            exportState.isRunning = false;
+            sendProgressUpdate();
         }
 
         window.xiaomiNotesParser.runExport = runExport;

@@ -29,6 +29,35 @@
 			border-color: #333;
 		}
 
+		#progress-container {
+			margin-top: 15px;
+			padding: 10px;
+			background: #fff;
+			border: 1px solid #e0e0e0;
+			border-radius: 5px;
+		}
+
+		#progress-text {
+			font-size: 14px;
+			font-weight: bold;
+			margin-bottom: 8px;
+			color: #333;
+		}
+
+		#progress-bar-container {
+			background: #e0e0e0;
+			border-radius: 4px;
+			height: 12px;
+			overflow: hidden;
+		}
+
+		#progress-bar {
+			background: #4CAF50;
+			height: 100%;
+			width: 0%;
+			transition: width 0.2s ease;
+		}
+
 	</style>
 </head>
 
@@ -38,6 +67,12 @@
 <p>2. Log in to Xiaomi Cloud: https://us.i.mi.com/</p>
 <p>3. Press "Download" and it should start download ZIP with all your notes.</p>
 <button id="send-button">Download</button>
+<div id="progress-container" style="display: none;">
+	<div id="progress-text">0/0</div>
+	<div id="progress-bar-container">
+		<div id="progress-bar"></div>
+	</div>
+</div>
 <script src="popup.js"></script>
 </body>
 
